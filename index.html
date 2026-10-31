@@ -31,7 +31,7 @@
   --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;overflow-y:scroll}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;min-height:100vh}
 img{display:block;max-width:100%}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;-webkit-tap-highlight-color:transparent}
@@ -163,7 +163,7 @@ main{max-width:1080px;margin:0 auto;padding:20px 16px 80px}
 .filter-btn{border:1px solid var(--line);border-radius:10px;padding:8px 11px;background:#F5F0E6;outline:none;font-size:14px;color:var(--ink-2);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s var(--ease-out),background .2s ease,color .2s ease;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
 .filter-btn:active{transform:scale(.97)}
 .filter-btn.on{color:var(--ink);background:#EDE5D2;border-color:#D5CBAC}
-.dlg-sheet.filter-pop{position:fixed;left:50%;top:50%;bottom:auto;transform:translate(-50%,calc(-50% + 18px)) scale(.97);display:flex;flex-direction:column;height:min(62vh,460px);padding-bottom:12px;width:min(340px,calc(100vw - 48px))}
+.dlg-sheet.filter-pop{position:fixed;left:50%;top:50%;bottom:auto;transform:translate(-50%,calc(-50% + 18px)) scale(.97);display:flex;flex-direction:column;height:min(62vh,460px);padding-bottom:12px;width:min(340px,calc(100vw - 48px));overscroll-behavior:contain}
 .dlg-sheet.filter-pop.show{transform:translate(-50%,-50%) scale(1);opacity:1}
 .filter-pop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-shrink:0}
 .filter-pop-close{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;color:var(--ink-3);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;-webkit-tap-highlight-color:transparent;transition:transform .16s var(--ease-out),background .2s ease}
@@ -258,7 +258,7 @@ textarea.input-text{min-height:96px;resize:vertical;line-height:1.6}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ===== 确认 / 输入弹窗 ===== */
-.dlg-mask{position:fixed;inset:0;z-index:98;background:rgba(36,39,31,.45);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s var(--ease-out),visibility 0s linear .2s}
+.dlg-mask{position:fixed;inset:0;z-index:98;background:rgba(36,39,31,.45);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s var(--ease-out),visibility 0s linear .2s;overscroll-behavior:none}
 .dlg-mask.show{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .2s var(--ease-out),visibility 0s}
 .dlg-sheet{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(16px) scale(.97);width:min(420px,calc(100vw - 32px));background:var(--surface);border-radius:20px;padding:22px 20px 16px;z-index:99;box-shadow:0 18px 50px rgba(36,39,31,.22);opacity:0;transition:transform .22s var(--ease-out),opacity .22s var(--ease-out)}
 .dlg-sheet.show{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
@@ -713,6 +713,27 @@ function showToast(msg){
   clearTimeout(showToast._t);
   showToast._t = setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
+/* 弹层打开时锁定背景滚动：覆盖鼠标滚轮 / 触摸 / 键盘方向键，关闭后恢复原位 */
+var _bodyLockY = 0;
+function lockBodyScroll(){
+  _bodyLockY = window.scrollY || document.documentElement.scrollTop || 0;
+  var b = document.body;
+  var sb = window.innerWidth - document.documentElement.clientWidth;
+  b.style.position = 'fixed';
+  b.style.top = '-' + _bodyLockY + 'px';
+  b.style.left = '0';
+  b.style.width = (window.innerWidth - sb) + 'px';
+  b.style.overflow = 'hidden';
+}
+function unlockBodyScroll(){
+  var b = document.body;
+  b.style.position = '';
+  b.style.top = '';
+  b.style.left = '';
+  b.style.width = '';
+  b.style.overflow = '';
+  window.scrollTo(0, _bodyLockY);
+}
 /* ===== 确认 / 输入弹窗 ===== */
 var _confirmCb = null, _promptCb = null;
 function confirmDialog(msg, onOk){
@@ -720,11 +741,13 @@ function confirmDialog(msg, onOk){
   $('confirm-mask').classList.add('show');
   $('confirm-sheet').classList.add('show');
   _confirmCb = onOk;
+  lockBodyScroll();
 }
 function closeConfirm(){
   $('confirm-mask').classList.remove('show');
   $('confirm-sheet').classList.remove('show');
   _confirmCb = null;
+  unlockBodyScroll();
 }
 function promptDialog(title, onOk){
   $('prompt-title').textContent = title;
@@ -732,12 +755,14 @@ function promptDialog(title, onOk){
   $('prompt-mask').classList.add('show');
   $('prompt-sheet').classList.add('show');
   _promptCb = onOk;
+  lockBodyScroll();
   setTimeout(function(){ $('prompt-input').focus(); }, 240);
 }
 function closePrompt(){
   $('prompt-mask').classList.remove('show');
   $('prompt-sheet').classList.remove('show');
   _promptCb = null;
+  unlockBodyScroll();
 }
 /* ===== 筛选弹窗（替代原生 select） ===== */
 var _filterSel = null;
@@ -788,11 +813,13 @@ function openFilterPop(selId, title){
   renderFilterList();
   $('filter-mask').classList.add('show');
   $('filter-pop').classList.add('show');
+  lockBodyScroll();
 }
 function closeFilterPop(){
   $('filter-mask').classList.remove('show');
   $('filter-pop').classList.remove('show');
   _filterSel = null;
+  unlockBodyScroll();
 }
 function syncFilterBtns(){
   var typeSel = $('filter-type');
@@ -1149,6 +1176,7 @@ function openPhotoViewer(recordId){
   var el = ensurePhotoViewer();
   pvShow(0);
   el.classList.add('show');
+  lockBodyScroll();
   // 压入 #/pv 占位：手机滑动返回第一下关闭查看器，再返回回到上一视图（首页），不会直接退出网页
   if(location.hash !== '#/pv'){
     try{ location.hash = '#/pv'; }catch(e){}
@@ -1158,6 +1186,7 @@ function closePhotoViewer(){
   if(!_pvEl) return;
   _pvEl.classList.remove('show');
   _pvList = [];
+  unlockBodyScroll();
   // 手动关闭（×/Esc）时若还停在占位 hash，回退历史让 URL 与视图一致
   if(location.hash === '#/pv'){
     try{ history.back(); }catch(e){ location.hash = '#/home'; }
@@ -1466,6 +1495,11 @@ function bindEvents(){
   });
   $('filter-pop-close').addEventListener('click', closeFilterPop);
   $('filter-mask').addEventListener('click', function(ev){ if(ev.target===this) closeFilterPop(); });
+  $('filter-mask').addEventListener('touchmove', function(ev){
+    var t = ev.target;
+    if(t.closest && t.closest('.filter-pop')) return;
+    ev.preventDefault();
+  }, {passive:false});
   document.addEventListener('keydown', function(ev){ if(ev.key==='Escape') closeFilterPop(); });
   $('btn-clear-filter').addEventListener('click', function(){
     $('search-input').value=''; $('filter-type').value=''; $('filter-flavor').value=''; $('filter-taste').value=''; $('filter-month').value='';
